@@ -112,3 +112,9 @@ InitTestScene*.unity*
 
 # Auto-generated cache in Assets folder
 /[Aa]ssets/[Ss]ceneDependencyCache*
+
+# Project specific ignores
+Snapshots/
+_unused_blend/
+voice_clips.zip
+
