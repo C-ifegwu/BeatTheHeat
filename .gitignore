@@ -117,4 +117,6 @@ InitTestScene*.unity*
 Snapshots/
 _unused_blend/
 voice_clips.zip
+*BurstDebugInformation_DoNotShip/
+
 
