@@ -118,5 +118,9 @@ Snapshots/
 _unused_blend/
 voice_clips.zip
 *BurstDebugInformation_DoNotShip/
+adb_*.txt
+*.mp4
+*.zip
+
 
 
