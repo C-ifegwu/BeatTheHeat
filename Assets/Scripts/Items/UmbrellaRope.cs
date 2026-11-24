@@ -19,7 +19,7 @@ public class UmbrellaRope : MonoBehaviour
         grab.trackPosition = true; grab.trackRotation = false; grab.throwOnDetach = false;
     }
 
-    /// <summary>A red pull handle on a thin cord hanging from the umbrella (it used to be a floating grey capsule beside the player).</summary>
+    /// <summary>Red pull handle on a thin cord, placed within easy reach on the left of the stall.</summary>
     void Style()
     {
         transform.position = new Vector3(0.82f, 1.62f, 0.55f);

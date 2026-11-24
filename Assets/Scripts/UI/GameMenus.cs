@@ -21,9 +21,11 @@ public class GameMenus : MonoBehaviour
         public Transform T, LabelT; public Renderer R; public Color Col;
         public System.Action OnClick; public bool Hover; public XRNode Hand = XRNode.RightHand; public bool TrigPrev; public float LastClick;
     }
+    class Item { public float H; public System.Action<float> Place; }
     class Panel
     {
-        public Scr Id; public Transform Root; public float W, H;
+        public Scr Id; public Transform Root; public float W, H, SlotTop; public Color Bg;
+        public List<Item> Items = new List<Item>();
         public List<Btn> Btns = new List<Btn>();
         public Dictionary<string, TextMeshPro> Texts = new Dictionary<string, TextMeshPro>();
     }
@@ -88,23 +90,55 @@ public class GameMenus : MonoBehaviour
         go.transform.localPosition = new Vector3(pos.x, pos.y, z); go.transform.localRotation = Quaternion.identity; go.transform.localScale = Vector3.one;
         var t = go.AddComponent<TextMeshPro>();
         t.text = s; t.color = c; t.alignment = al; t.fontStyle = bold ? FontStyles.Bold : FontStyles.Normal;
-        t.enableAutoSizing = true; t.fontSizeMin = 0.3f; t.fontSizeMax = lineH * 9f;
+        t.enableAutoSizing = false;
         t.enableWordWrapping = wrap;
         t.rectTransform.sizeDelta = box;
+        go.AddComponent<FitText>().Init(t, box, lineH, wrap);
         return t;
     }
 
-    Panel NewPanel(Scr id, float w, float h, Color bg, string title, float titleLine = 0.1f)
+    const float Pad = 0.08f, Gap = 0.035f, BtnW = 0.8f, BtnH = 0.12f;
+
+    /// <summary>Panels lay their content out top to bottom: add rows, call Finish, and the frame grows to fit.</summary>
+    Panel NewPanel(Scr id, float w, Color bg, string title = null, float titleLine = 0.1f)
     {
-        var p = new Panel { Id = id, W = w, H = h };
+        var p = new Panel { Id = id, W = w, Bg = bg };
         var root = new GameObject("Menu_" + id).transform; root.SetParent(transform, false);
         p.Root = root;
-        Slab(root, "Frame", PrimitiveType.Cube, new Vector3(0, 0, 0.012f), new Vector3(w + 0.06f, h + 0.06f, 0.02f), Gold);
-        Slab(root, "Bg", PrimitiveType.Cube, Vector3.zero, new Vector3(w, h, 0.02f), bg);
-        if (!string.IsNullOrEmpty(title)) Txt(root, title, new Vector2(0, h / 2 - 0.13f), new Vector2(w - 0.1f, titleLine + 0.04f), titleLine, Gold);
         root.gameObject.SetActive(false);
         panels[id] = p;
+        if (!string.IsNullOrEmpty(title)) Label(p, title, titleLine, Gold, titleLine + 0.04f);
         return p;
+    }
+
+    static void SetY(Transform t, float y) { var lp = t.localPosition; t.localPosition = new Vector3(lp.x, y, lp.z); }
+    static void Add(Panel p, float h, System.Action<float> place) { p.Items.Add(new Item { H = h, Place = place }); }
+    static void Spacer(Panel p, float h) { Add(p, h, null); }
+
+    TextMeshPro Label(Panel p, string s, float lineH, Color c, float h, bool wrap = false, bool bold = true, TextAlignmentOptions al = TextAlignmentOptions.Center)
+    {
+        var t = Txt(p.Root, s, Vector2.zero, new Vector2(p.W - 0.12f, h), lineH, c, wrap, bold, al);
+        Add(p, h, y => SetY(t.transform, y));
+        return t;
+    }
+
+    Btn Button(Panel p, string label, Color col, System.Action click, float lineH = 0.065f, float w = BtnW, float h = BtnH)
+    {
+        var b = AddBtn(p.Root, p, label, Vector2.zero, new Vector2(w, h), col, click, lineH);
+        Add(p, h, y => Move(b, y));
+        return b;
+    }
+
+    void Finish(Panel p)
+    {
+        float total = Pad * 2f;
+        foreach (var it in p.Items) total += it.H + Gap;
+        total -= Gap;
+        p.H = total;
+        float cursor = total / 2f - Pad;
+        foreach (var it in p.Items) { if (it.Place != null) it.Place(cursor - it.H / 2f); cursor -= it.H + Gap; }
+        Slab(p.Root, "Frame", PrimitiveType.Cube, new Vector3(0, 0, 0.012f), new Vector3(p.W + 0.06f, total + 0.06f, 0.02f), Gold);
+        Slab(p.Root, "Bg", PrimitiveType.Cube, Vector3.zero, new Vector3(p.W, total, 0.02f), p.Bg);
     }
 
     Btn AddBtn(Transform root, Panel p, string label, Vector2 pos, Vector2 size, Color col, System.Action click, float lineH = 0.065f)
@@ -157,23 +191,28 @@ public class GameMenus : MonoBehaviour
     static void SetBtnVisible(Btn b, bool v) { b.T.gameObject.SetActive(v); b.LabelT.gameObject.SetActive(v); if (!v) b.Hover = false; }
 
     // ------------------------------------------------------------------ panels
+    static readonly Color Soft = new Color(0.7f, 0.75f, 0.9f);
+
     void BuildMain()
     {
-        var p = NewPanel(Scr.Main, 1.1f, 1.4f, Navy, null);
-        var r = p.Root;
-        Txt(r, "BEAT THE HEAT", new Vector2(0, 0.53f), new Vector2(1.0f, 0.2f), 0.15f, new Color(1f, 0.65f, 0.15f));
-        Txt(r, "MARKET SELLER", new Vector2(0, 0.40f), new Vector2(0.9f, 0.1f), 0.08f, Cream);
-        Txt(r, "Serve the market. Beat the heat.", new Vector2(0, 0.31f), new Vector2(0.9f, 0.07f), 0.045f, new Color(0.45f, 0.9f, 0.85f), false, false);
-        AddBtn(r, p, "PLAY", new Vector2(0, 0.15f), new Vector2(0.8f, 0.15f), Green, () => { GameManager.Instance.SkipTutorial = false; GameManager.Instance.StartGame(); }, 0.09f);
-        AddBtn(r, p, "HOW TO PLAY", new Vector2(0, -0.03f), new Vector2(0.8f, 0.12f), Blue, () => Show(Scr.HowTo));
-        AddBtn(r, p, "SETTINGS", new Vector2(0, -0.17f), new Vector2(0.8f, 0.12f), Purple, () => { settingsBack = Scr.Main; Show(Scr.Settings); });
-        AddBtn(r, p, "CREDITS", new Vector2(0, -0.31f), new Vector2(0.8f, 0.12f), Orange, () => Show(Scr.Credits));
-        AddBtn(r, p, "QUIT", new Vector2(0, -0.45f), new Vector2(0.8f, 0.12f), Red, () => Application.Quit());
-        p.Texts["stats"] = Txt(r, "", new Vector2(0, -0.585f), new Vector2(1.0f, 0.07f), 0.045f, Cream, false, false);
-        Txt(r, "Point at a button, press the trigger. Or grab the paper bag to start.", new Vector2(0, -0.65f), new Vector2(1.02f, 0.05f), 0.035f, new Color(0.7f, 0.75f, 0.9f), false, false);
+        var p = NewPanel(Scr.Main, 1.2f, Navy);
+        Label(p, "BEAT THE HEAT", 0.14f, new Color(1f, 0.65f, 0.15f), 0.2f);
+        Label(p, "MARKET SELLER", 0.08f, Cream, 0.1f);
+        Label(p, "Serve the market. Beat the heat.", 0.06f, new Color(0.45f, 0.9f, 0.85f), 0.07f, false, false);
+        Spacer(p, 0.02f);
+        Button(p, "PLAY", Green, () => { GameManager.Instance.SkipTutorial = false; GameManager.Instance.StartGame(); }, 0.09f, BtnW, 0.15f);
+        Button(p, "HOW TO PLAY", Blue, () => Show(Scr.HowTo));
+        Button(p, "SETTINGS", Purple, () => { settingsBack = Scr.Main; Show(Scr.Settings); });
+        Button(p, "CREDITS", Orange, () => Show(Scr.Credits));
+        Button(p, "QUIT", Red, () => Application.Quit());
+        Spacer(p, 0.02f);
+        p.Texts["stats"] = Label(p, "", 0.045f, Cream, 0.07f, false, false);
+        Label(p, "Point at a button and press the trigger. Or grab the paper bag to start.", 0.035f, Soft, 0.05f, false, false);
+        Finish(p);
 
         // sun with rotating rays, spinning coins and bobbing fruit around the board
-        float top = p.H / 2;
+        var r = p.Root;
+        float top = p.H / 2, fruitY = -p.H / 2 + 0.3f;
         var sun = new GameObject("Sun").transform; sun.SetParent(r, false); sun.localPosition = new Vector3(0, top + 0.22f, 0.02f);
         Slab(sun, "Disc", PrimitiveType.Sphere, Vector3.zero, new Vector3(0.2f, 0.2f, 0.02f), new Color(1f, 0.85f, 0.2f));
         var rays = new GameObject("Rays").transform; rays.SetParent(sun, false);
@@ -186,20 +225,21 @@ public class GameMenus : MonoBehaviour
         spinners.Add((rays, Vector3.forward, 25f));
         for (int s = -1; s <= 1; s += 2)
         {
-            var spin = new GameObject("CoinSpin").transform; spin.SetParent(r, false); spin.localPosition = new Vector3(s * (p.W / 2 + 0.17f), 0.15f, -0.02f);
+            float x = s * (p.W / 2 + 0.17f);
+            var spin = new GameObject("CoinSpin").transform; spin.SetParent(r, false); spin.localPosition = new Vector3(x, 0.15f, -0.02f);
             var coin = Slab(spin, "Coin", PrimitiveType.Cylinder, Vector3.zero, new Vector3(0.22f, 0.012f, 0.22f), new Color(1f, 0.8f, 0.15f));
             coin.transform.localRotation = Quaternion.Euler(90, 0, 0);
             Slab(spin, "CoinInner", PrimitiveType.Cylinder, new Vector3(0, 0, -0.01f), new Vector3(0.15f, 0.012f, 0.15f), new Color(1f, 0.92f, 0.45f)).transform.localRotation = Quaternion.Euler(90, 0, 0);
             spinners.Add((spin, Vector3.up, 110f * -s));
-            var fruit = Slab(r, s < 0 ? "Apple" : "Lemon", PrimitiveType.Sphere, new Vector3(s * (p.W / 2 + 0.17f), -0.4f, -0.02f), s < 0 ? new Vector3(0.14f, 0.14f, 0.05f) : new Vector3(0.17f, 0.11f, 0.05f), s < 0 ? new Color(0.9f, 0.15f, 0.15f) : new Color(1f, 0.9f, 0.2f));
-            bobbers.Add((fruit.transform, -0.4f, 0.03f, s));
+            var fruit = Slab(r, s < 0 ? "Apple" : "Lemon", PrimitiveType.Sphere, new Vector3(x, fruitY, -0.02f), s < 0 ? new Vector3(0.14f, 0.14f, 0.05f) : new Vector3(0.17f, 0.11f, 0.05f), s < 0 ? new Color(0.9f, 0.15f, 0.15f) : new Color(1f, 0.9f, 0.2f));
+            bobbers.Add((fruit.transform, fruitY, 0.03f, s));
             if (s < 0) { var leaf = Slab(fruit.transform, "Leaf", PrimitiveType.Cube, new Vector3(0.15f, 0.6f, 0), new Vector3(0.2f, 0.25f, 0.5f), new Color(0.2f, 0.7f, 0.25f)); leaf.transform.localRotation = Quaternion.Euler(0, 0, 30); }
         }
     }
 
     void BuildHowTo()
     {
-        var p = NewPanel(Scr.HowTo, 1.4f, 1.3f, Navy, "HOW TO PLAY", 0.1f);
+        var p = NewPanel(Scr.HowTo, 1.4f, Navy, "HOW TO PLAY");
         string body =
             "1.  A customer walks up and says their order out loud. Their speech bubble lists what they want.\n" +
             "2.  Grab fruit and drinks from the shelves behind you (grip button). The shelf refills by itself.\n" +
@@ -208,29 +248,37 @@ public class GameMenus : MonoBehaviour
             "5.  Correct orders served fast earn tips. Perfect orders in a row build a streak bonus.\n" +
             "6.  When it gets hot, customers lose patience faster. Pull the umbrella rope for shade.\n" +
             "7.  Reach the coin goal each day for stars. Pause any time: left Menu button, or the PAUSE sign.";
-        Txt(p.Root, body, new Vector2(0, 0.06f), new Vector2(1.28f, 0.95f), 0.06f, Color.white, true, false, TextAlignmentOptions.TopLeft);
-        AddBtn(p.Root, p, "BACK", new Vector2(0, -0.54f), new Vector2(0.5f, 0.12f), Blue, () => Show(Scr.Main));
+        Label(p, body, 0.06f, Color.white, 0.95f, true, false, TextAlignmentOptions.TopLeft);
+        Button(p, "BACK", Blue, () => Show(Scr.Main), 0.065f, 0.5f);
+        Finish(p);
     }
 
     void BuildSettings()
     {
-        var p = NewPanel(Scr.Settings, 1.2f, 1.25f, Navy, "SETTINGS", 0.1f);
-        var r = p.Root;
-        Row(p, "Volume", 0.3f, "vol", () => { GameSettings.Volume -= 0.1f; RefreshSettings(); }, () => { GameSettings.Volume += 0.1f; RefreshSettings(); });
-        Row(p, "View height", 0.08f, "height", () => { GameSettings.Height -= 0.05f; RefreshSettings(); }, () => { GameSettings.Height += 0.05f; RefreshSettings(); });
-        Txt(r, "Raise or lower your view: seated or standing", new Vector2(0, -0.02f), new Vector2(1.1f, 0.05f), 0.035f, new Color(0.7f, 0.75f, 0.9f), false, false);
-        Row(p, "Difficulty", -0.2f, "diff", () => { GameSettings.Difficulty -= 1; RefreshSettings(); }, () => { GameSettings.Difficulty += 1; RefreshSettings(); });
-        Txt(r, "Harder = customers lose patience faster", new Vector2(0, -0.30f), new Vector2(1.1f, 0.05f), 0.035f, new Color(0.7f, 0.75f, 0.9f), false, false);
-        AddBtn(r, p, "BACK", new Vector2(0, -0.5f), new Vector2(0.5f, 0.12f), Blue, () => Show(settingsBack));
+        var p = NewPanel(Scr.Settings, 1.2f, Navy, "SETTINGS");
+        Row(p, "Volume", "vol", () => { GameSettings.Volume -= 0.1f; RefreshSettings(); }, () => { GameSettings.Volume += 0.1f; RefreshSettings(); });
+        Row(p, "View height", "height", () => { GameSettings.Height -= 0.05f; RefreshSettings(); }, () => { GameSettings.Height += 0.05f; RefreshSettings(); });
+        Label(p, "Raise or lower your view: seated or standing", 0.035f, Soft, 0.05f, false, false);
+        Row(p, "Difficulty", "diff", () => { GameSettings.Difficulty -= 1; RefreshSettings(); }, () => { GameSettings.Difficulty += 1; RefreshSettings(); });
+        Label(p, "Harder = customers lose patience faster", 0.035f, Soft, 0.05f, false, false);
+        Spacer(p, 0.03f);
+        Button(p, "BACK", Blue, () => Show(settingsBack), 0.065f, 0.5f);
+        Finish(p);
     }
 
-    void Row(Panel p, string label, float y, string key, System.Action minus, System.Action plus)
+    void Row(Panel p, string label, string key, System.Action minus, System.Action plus)
     {
-        Txt(p.Root, label, new Vector2(-0.36f, y), new Vector2(0.45f, 0.1f), 0.07f, Cream, false, true, TextAlignmentOptions.Left);
-        AddBtn(p.Root, p, "-", new Vector2(0.1f, y), new Vector2(0.13f, 0.11f), Orange, minus, 0.1f);
-        p.Texts[key] = Txt(p.Root, "", new Vector2(0.28f, y), new Vector2(0.24f, 0.1f), 0.065f, Color.white);
-        AddBtn(p.Root, p, "+", new Vector2(0.46f, y), new Vector2(0.13f, 0.11f), Green, plus, 0.1f);
+        var name = Txt(p.Root, label, Vector2.zero, new Vector2(0.45f, 0.1f), 0.07f, Cream, false, true, TextAlignmentOptions.Left);
+        SetX(name.transform, -0.36f);
+        var bMinus = AddBtn(p.Root, p, "-", Vector2.zero, new Vector2(0.13f, 0.11f), Orange, minus, 0.1f);
+        var value = Txt(p.Root, "", Vector2.zero, new Vector2(0.24f, 0.1f), 0.065f, Color.white);
+        var bPlus = AddBtn(p.Root, p, "+", Vector2.zero, new Vector2(0.13f, 0.11f), Green, plus, 0.1f);
+        SetX(bMinus.T, 0.1f); SetX(bMinus.LabelT, 0.1f); SetX(value.transform, 0.28f); SetX(bPlus.T, 0.46f); SetX(bPlus.LabelT, 0.46f);
+        p.Texts[key] = value;
+        Add(p, 0.11f, y => { SetY(name.transform, y); Move(bMinus, y); SetY(value.transform, y); Move(bPlus, y); });
     }
+
+    static void SetX(Transform t, float x) { var lp = t.localPosition; t.localPosition = new Vector3(x, lp.y, lp.z); }
 
     void RefreshSettings()
     {
@@ -242,7 +290,7 @@ public class GameMenus : MonoBehaviour
 
     void BuildCredits()
     {
-        var p = NewPanel(Scr.Credits, 1.3f, 1.2f, Navy, "CREDITS", 0.1f);
+        var p = NewPanel(Scr.Credits, 1.3f, Navy, "CREDITS");
         string body =
             "BEAT THE HEAT: MARKET SELLER\n" +
             "A VR market-stall game for Meta Quest 2\n\n" +
@@ -252,55 +300,61 @@ public class GameMenus : MonoBehaviour
             "Fruit, bread and ground materials: Poly Haven (CC0)\n" +
             "City buildings: SimplePoly City. Characters and animations: Mixamo\n" +
             "Customer voices: Piper neural text-to-speech";
-        Txt(p.Root, body, new Vector2(0, 0.0f), new Vector2(1.2f, 0.85f), 0.06f, Color.white, true, false);
-        AddBtn(p.Root, p, "BACK", new Vector2(0, -0.49f), new Vector2(0.5f, 0.12f), Blue, () => Show(Scr.Main));
+        Label(p, body, 0.06f, Color.white, 0.85f, true, false);
+        Button(p, "BACK", Blue, () => Show(Scr.Main), 0.065f, 0.5f);
+        Finish(p);
     }
 
     Btn pResume, pRestart, pSkip, pSettings, pMenu;
     void BuildPause()
     {
-        var p = NewPanel(Scr.Pause, 0.9f, 1.15f, Navy, "PAUSED", 0.12f);
-        p.Texts["info"] = Txt(p.Root, "", new Vector2(0, 0.33f), new Vector2(0.8f, 0.08f), 0.055f, Cream, false, false);
-        pResume = AddBtn(p.Root, p, "RESUME", Vector2.zero, new Vector2(0.7f, 0.12f), Green, () => GameManager.Instance.SetPaused(false), 0.075f);
-        pRestart = AddBtn(p.Root, p, "RESTART DAY", Vector2.zero, new Vector2(0.7f, 0.12f), Orange, () => { GameManager.Instance.RestartDay(); });
-        pSkip = AddBtn(p.Root, p, "SKIP TUTORIAL", Vector2.zero, new Vector2(0.7f, 0.12f), Purple, () => GameManager.Instance.SkipTutorialNow());
-        pSettings = AddBtn(p.Root, p, "SETTINGS", Vector2.zero, new Vector2(0.7f, 0.12f), Blue, () => { settingsBack = Scr.Pause; Show(Scr.Settings); });
-        pMenu = AddBtn(p.Root, p, "MAIN MENU", Vector2.zero, new Vector2(0.7f, 0.12f), Red, () => GameManager.Instance.ToMenu());
+        var p = NewPanel(Scr.Pause, 0.9f, Navy, "PAUSED", 0.12f);
+        p.Texts["info"] = Label(p, "", 0.055f, Cream, 0.08f, false, false);
+        float slots = 4 * BtnH + 3 * Gap;
+        Add(p, slots, y => p.SlotTop = y + slots / 2f);
+        var sz = new Vector2(0.7f, BtnH);
+        pResume = AddBtn(p.Root, p, "RESUME", Vector2.zero, sz, Green, () => GameManager.Instance.SetPaused(false), 0.075f);
+        pRestart = AddBtn(p.Root, p, "RESTART DAY", Vector2.zero, sz, Orange, () => { GameManager.Instance.RestartDay(); });
+        pSkip = AddBtn(p.Root, p, "SKIP TUTORIAL", Vector2.zero, sz, Purple, () => GameManager.Instance.SkipTutorialNow());
+        pSettings = AddBtn(p.Root, p, "SETTINGS", Vector2.zero, sz, Blue, () => { settingsBack = Scr.Pause; Show(Scr.Settings); });
+        pMenu = AddBtn(p.Root, p, "MAIN MENU", Vector2.zero, sz, Red, () => GameManager.Instance.ToMenu());
+        Finish(p);
     }
 
     void LayoutPause()
     {
         var gm = GameManager.Instance; bool tut = gm.State == GameState.Tutorial;
+        var p = panels[Scr.Pause];
         SetBtnVisible(pRestart, !tut); SetBtnVisible(pSkip, tut);
-        var order = new List<Btn> { pResume };
-        order.Add(tut ? pSkip : pRestart); order.Add(pSettings); order.Add(pMenu);
-        float y = 0.17f;
-        foreach (var b in order) { Move(b, y); y -= 0.16f; }
+        var order = new List<Btn> { pResume, tut ? pSkip : pRestart, pSettings, pMenu };
+        float y = p.SlotTop - BtnH / 2f;
+        foreach (var b in order) { Move(b, y); y -= BtnH + Gap; }
         var sc = ScoreManager.Instance;
-        panels[Scr.Pause].Texts["info"].text = tut ? "Tutorial" : "Day " + (gm.DayIndex + 1) + ": " + gm.Config.Name + "   " + sc.Coins + " / " + gm.Config.TargetCoins + " coins";
+        p.Texts["info"].text = tut ? "Tutorial" : "Day " + (gm.DayIndex + 1) + ": " + gm.Config.Name + "   " + sc.Coins + " / " + gm.Config.TargetCoins + " coins";
     }
 
     Btn rNext, rReplay, rMenu;
     void BuildResults()
     {
-        var p = NewPanel(Scr.Results, 1.2f, 1.5f, Navy, null);
-        var r = p.Root;
-        p.Texts["title"] = Txt(r, "", new Vector2(0, 0.62f), new Vector2(1.1f, 0.14f), 0.11f, Gold);
-        p.Texts["sub"] = Txt(r, "", new Vector2(0, 0.5f), new Vector2(1.1f, 0.08f), 0.055f, Cream, false, false);
+        var p = NewPanel(Scr.Results, 1.2f, Navy);
+        p.Texts["title"] = Label(p, "", 0.11f, Gold, 0.14f);
+        p.Texts["sub"] = Label(p, "", 0.055f, Cream, 0.08f, false, false);
         stars = new Transform[3];
         for (int i = 0; i < 3; i++)
         {
-            var s = Slab(r, "Star" + i, PrimitiveType.Cube, new Vector3((i - 1) * 0.28f, 0.34f, -0.02f), new Vector3(0.14f, 0.14f, 0.02f), Color.gray);
+            var s = Slab(p.Root, "Star" + i, PrimitiveType.Cube, Vector3.zero, new Vector3(0.14f, 0.14f, 0.02f), Color.gray);
             s.transform.localRotation = Quaternion.Euler(0, 0, 45);
-            var s2 = Slab(s.transform, "Spike", PrimitiveType.Cube, Vector3.zero, new Vector3(1f, 1f, 1f), Color.gray);
+            var s2 = Slab(s.transform, "Spike", PrimitiveType.Cube, Vector3.zero, Vector3.one, Color.gray);
             s2.transform.localRotation = Quaternion.Euler(0, 0, 45);
-            s2.transform.localScale = new Vector3(1.0f, 1.0f, 1f);
             stars[i] = s.transform;
         }
-        p.Texts["stats"] = Txt(r, "", new Vector2(0, 0.03f), new Vector2(1.1f, 0.42f), 0.065f, Color.white, true, false);
-        rNext = AddBtn(r, p, "NEXT DAY", new Vector2(0, -0.35f), new Vector2(0.8f, 0.13f), Green, () => GameManager.Instance.NextDayOrRestart(), 0.08f);
-        rReplay = AddBtn(r, p, "REPLAY DAY", new Vector2(0, -0.5f), new Vector2(0.8f, 0.12f), Orange, () => GameManager.Instance.RestartDay());
-        rMenu = AddBtn(r, p, "MAIN MENU", new Vector2(0, -0.64f), new Vector2(0.8f, 0.12f), Red, () => GameManager.Instance.ToMenu());
+        Add(p, 0.2f, y => { for (int i = 0; i < 3; i++) stars[i].localPosition = new Vector3((i - 1) * 0.28f, y, -0.02f); });
+        p.Texts["stats"] = Label(p, "", 0.065f, Color.white, 0.42f, true, false);
+        Spacer(p, 0.02f);
+        rNext = Button(p, "NEXT DAY", Green, () => GameManager.Instance.NextDayOrRestart(), 0.08f, BtnW, 0.13f);
+        rReplay = Button(p, "REPLAY DAY", Orange, () => GameManager.Instance.RestartDay());
+        rMenu = Button(p, "MAIN MENU", Red, () => GameManager.Instance.ToMenu());
+        Finish(p);
     }
 
     static string Rank(int stars)
@@ -537,5 +591,52 @@ public class CoinPopup : MonoBehaviour
         float a = Mathf.Clamp01(1.6f - age);
         text.color = new Color(col.r, col.g, col.b, a);
         if (age > 1.6f) Destroy(gameObject);
+    }
+}
+
+/// <summary>
+/// Sizes a 3D TextMeshPro to fill its box without overflowing. The font size is found by measuring the text itself,
+/// so it works whatever unit scale the font uses, and it refits whenever the text changes.
+/// </summary>
+public class FitText : MonoBehaviour
+{
+    TextMeshPro t;
+    Vector2 box;
+    float lineHeight;
+    bool wrap;
+    string last;
+
+    public void Init(TextMeshPro tmp, Vector2 size, float line, bool wrapLines)
+    {
+        t = tmp; box = size; lineHeight = line; wrap = wrapLines; last = null;
+    }
+
+    // Fitting needs the font to be loaded, which only happens once the object is active.
+    void OnEnable() { if (t != null && t.font != null) Fit(); }
+
+    void LateUpdate() { if (t != null && t.font != null && t.text != last) Fit(); }
+
+    void Fit()
+    {
+        last = t.text;
+        if (string.IsNullOrEmpty(last)) return;
+        t.enableWordWrapping = wrap;
+        t.fontSize = 1f;
+        float lineAtOne = Mathf.Max(0.0001f, t.GetPreferredValues("Ag", float.PositiveInfinity, float.PositiveInfinity).y);
+        float max = lineHeight / lineAtOne, lo = max * 0.02f, hi = max;
+        if (Fits(hi)) { t.fontSize = hi; return; }
+        for (int i = 0; i < 14; i++)
+        {
+            float mid = (lo + hi) * 0.5f;
+            if (Fits(mid)) lo = mid; else hi = mid;
+        }
+        t.fontSize = lo;
+    }
+
+    bool Fits(float size)
+    {
+        t.fontSize = size;
+        Vector2 pv = t.GetPreferredValues(last, wrap ? box.x : float.PositiveInfinity, float.PositiveInfinity);
+        return pv.x <= box.x + 0.0001f && pv.y <= box.y;
     }
 }

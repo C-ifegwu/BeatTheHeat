@@ -124,3 +124,11 @@ adb_*.txt
 
 
 
+
+# Local tooling, captures and build leftovers
+*.mp4
+*.zip
+adb_*.txt
+*BurstDebugInformation_DoNotShip/
+_unused_blend/
+Snapshots/
