@@ -1,64 +1,89 @@
 # Beat the Heat: Market Seller
 
-A virtual reality market-stall game for the Meta Quest 2. You run a fruit stall on a hot street. Customers walk up with an order, you pick the items off the shelf, pack them in a paper bag and hand the bag over before the customer loses patience. The heat keeps climbing, so you also have to pull the umbrella rope to keep the stall shaded.
+A fast-paced VR market stall simulation developed for the Meta Quest 2 using Unity 6 (URP) and the XR Interaction Toolkit.
 
-Built for the AR/VR Project Vertical Slice (ALU, AR/VR Development with Unity II).
+You play as a street vendor running a fruit and grocery stall under a blistering hot sun. Customers approach your stand with specific orders that you have to grab from the shelves, pack into paper grocery bags, and hand over before they run out of patience. Meanwhile, the temperature is constantly rising—if you don't periodically pull down the overhead umbrella rope to shade your stall, your goods spoil and heat levels spike.
 
-## Tech
+Developed as a project vertical slice for the *AR/VR Development with Unity II* course at ALU.
 
-- Unity 6000.4.6f1 (Universal Render Pipeline)
-- XR Interaction Toolkit 3.4.1, OpenXR
-- Target: Meta Quest 2, Android, IL2CPP, ARM64
+---
 
-## How to run
+## Gameplay & Controls
 
-### On a Quest 2
+### Controls (Oculus Touch)
+- **Grip (Hold):** Pick up fruit and wares from shelves, hold the paper bag, or pull down the umbrella rope.
+- **Trigger:** Click buttons and navigate VR menus.
+- **Left Menu Button / Y:** Pause game and toggle settings.
 
-1. Install Unity 6000.4.6f1 with the Android Build Support module (OpenJDK and Android SDK/NDK included).
-2. Clone this repository and open the folder in Unity Hub.
-3. Open `Assets/Scenes/Market.unity`.
-4. In `File > Build Profiles`, select Android. The scene list should contain `Scenes/Market`.
-5. Put the headset in developer mode, connect it by USB and accept the USB debugging prompt.
-6. Choose your headset as the Run Device and click **Build And Run**.
+### Core Mechanics
+- **Fulfill Orders:** Customers arrive at the counter with visual order bubbles. Grab the requested items from your shelves, place them inside the paper bag, and bring the bag up to the customer to complete the sale.
+- **Manage the Heat:** Keep an eye on your heat gauge. Grabbing the umbrella rope and pulling it down opens the canopy, cooling the stall down and protecting produce from spoiling under direct sunlight.
+- **Day Progression:** Clear daily coin quotas across three increasingly demanding days. Fulfilling orders quickly and without errors builds up combo streak bonuses.
 
-### In the Unity editor
+---
 
-Press Play with the XR Interaction Simulator or a Link-connected headset. A desktop test camera is included for quick checks without a headset (`Assets/Scripts/Core/DesktopTestCamera.cs`).
+## Setup & Running the Project
 
-## How to play
+### Requirements
+- **Unity Version:** `6000.4.6f1` (Universal Render Pipeline)
+- **Build Module:** Android Build Support (including Android SDK & NDK tools + OpenJDK)
+- **Target Device:** Meta Quest 2 (Standalone APK or Quest Link / Air Link)
 
-- **Menu:** point at a button and press the trigger. Press the left Menu button (or Y) at any time to pause.
-- **Grab:** hold the grip on a fruit on the shelf behind you and drop it into the paper bag on the counter.
-- **Serve:** pick up the bag and hold it against the customer's body to hand over the order. Wrong or missing items cost you; a complete order earns coins.
-- **Shade:** grab the umbrella rope and pull it down to open the umbrella. The stall cools while it is open.
-- **Goal:** reach the coin target for the day before time runs out. Perfect orders in a row build a streak bonus. Three days, getting harder each time.
+### Deploying to Quest 2
+1. Open the project folder in Unity Hub with version `6000.4.6f1`.
+2. Load the main scene at `Assets/Scenes/Market.unity`.
+3. Open **File > Build Profiles**, select **Android**, and ensure `Scenes/Market` is checked in the build list.
+4. Enable Developer Mode on your headset and connect it via USB (allow USB debugging in the headset prompt).
+5. Select your Quest from the **Run Device** dropdown and click **Build And Run**.
 
-## Project structure
+### Editor Testing
+You can test directly in the Unity Editor using either:
+- **Quest Link / Air Link** for full headset preview.
+- **XR Interaction Simulator** to emulate controller poses with mouse and keyboard.
+- **Desktop Debug Camera** (`Assets/Scripts/Core/DesktopTestCamera.cs`) for quick scene checks without entering VR.
+
+---
+
+## Project Structure & Architecture
 
 ```
 Assets/
-  Scenes/Market.unity        main scene
-  Scripts/
-    Core/                    game state, score, heat, settings, audio helpers
-    Customers/               customer behaviour, spawning, order handling
-    Items/                   shelf items, bag, umbrella rope
-    People/                  pedestrians, animation, dialogue playback
-    UI/                      HUD, order bubbles, tutorial, menus
-    Editor/                  scene and material setup tools
+├── Scenes/
+│   └── Market.unity          # Main playable VR scene
+├── Scripts/
+│   ├── Core/                 # Game loop, heat simulation, scoring, audio, settings
+│   ├── Customers/            # Customer ordering behavior, queues, order handover
+│   ├── Items/                # Shelf items, spoilage, bag packing, umbrella rope
+│   ├── People/               # Pedestrian navigation, animation controllers, speech
+│   ├── UI/                   # World-space order bubbles, follow-HUD, VR menus
+│   └── Editor/               # Scene assembly tools and Mixamo import helpers
+└── Resources/
+    └── Voice/                # Customer dialogue and order audio clips
 ```
 
-## Design notes
+### Key Systems
+- **Game State & Flow (`GameManager.cs`):** Coordinates progression across menus, tutorial steps, active gameplay, and end-of-day scoring screens.
+- **Temperature & Shade (`HeatManager.cs`):** Simulates ambient temperature climb and checks whether the stall is protected by the pulled umbrella canopy.
+- **Customer AI (`Customer.cs`, `CustomerSpawner.cs`):** Manages customer lifecycle, order generation, patience countdowns, voice feedback, and item verification upon bag handover.
+- **Physical Interactions (`UmbrellaRope.cs`, `Bag.cs`, `StallItem.cs`):** Handles physics-driven rope pulling, multi-item bag packing triggers, and item heat vulnerability.
+- **Dynamic Menus (`GameMenus.cs`, `FollowHud.cs`):** Renders clean world-space VR UI and a follow-HUD with heat and score metrics that stay comfortably in the player's field of view.
 
-- **State machine:** `GameManager` owns the game state (menu, tutorial, playing, results) and other systems react to its events.
-- **Singletons for services:** score, heat, feedback and the bag are single instances used across the scene.
-- **Event driven UI:** the HUD and menus subscribe to score and state events instead of polling.
-- **Settings:** volume, player height and difficulty are saved with PlayerPrefs.
-- **Menus** are built at runtime from one layout helper, so every panel shares the same sizes, spacing and text scale.
+---
 
-## Performance
+## Performance & Optimization (Quest 2 Target)
 
-Settings used for the Quest 2 target: IL2CPP scripting backend, ARM64 only, GPU skinning for the animated characters, engine code stripping, URP, mipmaps on imported textures and lightweight unlit shaders for the menus. Benchmark figures and profiler screenshots are in the Game Design Document.
+Designed to maintain a steady 72 FPS on standalone mobile VR hardware:
+- **Scripting Backend:** IL2CPP targeting ARM64.
+- **Rendering:** Universal Render Pipeline with Single Pass Instanced (Multiview) rendering to halve draw call overhead.
+- **Character Meshes:** GPU skinning enabled for all animated pedestrian and customer models.
+- **Texture Budgets:** Clamped to 1024x1024 with generated mipmaps to fit within Quest memory bandwidth.
+- **UI & Canvases:** Lightweight unlit shaders used for world-space panels to avoid unnecessary dynamic lighting passes.
 
-## Assets
+---
 
-Fruit, bread and ground materials are from Poly Haven (CC0). City buildings are from SimplePoly City. Characters and animations are from Mixamo. Customer voices were generated with Piper text-to-speech. The same credits appear in the in-game Credits screen.
+## Third-Party Credits & Acknowledgments
+
+- **Props & Environment:** Low-poly city environment by *SimplePoly City*; market furniture and stall props from *WoodInterior*.
+- **Items & Textures:** Produce 3D models and PBR surface textures from *Poly Haven* (CC0); market bottles and goods from *RPG Pack*.
+- **Characters & Rigs:** 3D character models and humanoid animation clips sourced from *Mixamo*.
+- **Voice Lines:** Synthesized customer dialogue audio generated with *Piper TTS*.
